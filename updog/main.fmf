@@ -1,0 +1,5 @@
+summary: Library for smooth upgrade/downgrade of glibc
+contact: Martin Coufal <mcoufal@redhat.com>
+recommend:
+  - python
+  - python3

@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+
+import argparse
+import sys
+import re
+
+# Disable urllib3 warnings about not having "A true SSLContext object"
+# Other way how to get rid of this warning is upgrading to Python 2.7.9,
+# which is probably not gonna happen on liver2 any time soon.
+import requests
+if sys.version_info[0] == 2 and sys.version_info[1] < 7:
+  requests.packages.urllib3.disable_warnings()
+
+parser = argparse.ArgumentParser()
+parser.add_argument("location")
+args = parser.parse_args()
+
+try:
+
+    # Get the directory listing for the given URL (COPR subdirectory)
+    response = requests.get(args.location)
+    if response.status_code != 200:
+        raise Exception("Got status code %d from " + args.location)
+
+    # Get the list of glibc-*/nscd-* RPM files in the directory
+    rpm_list = []
+    for line in response.text.split('\n'):
+
+        match = re.search('href="(glibc-?.*-2\..*\.rpm)"', line)
+        if not match:
+          match = re.search('href="(nscd-?.*-2\..*\.rpm)"', line)
+
+        if match:
+            rpm_list.append(match.group(1))
+
+    if not rpm_list:
+        raise Exception("Could not find RPMs at " + args.location)
+    else:
+        # Download the RPMs
+        for rpm_filename in rpm_list:
+            rpm_url = args.location + '/' + rpm_filename
+            sys.stdout.write("Fetching " + rpm_url + ' ...')
+            sys.stdout.flush()
+            r = requests.get(rpm_url, stream=True)
+            with open(rpm_filename, 'wb') as fd:
+                for chunk in r.iter_content(1024):
+                    fd.write(chunk)
+            sys.stdout.write("done.\n")
+
+except Exception as e:
+
+    print(str(e))
+    sys.exit(1)
